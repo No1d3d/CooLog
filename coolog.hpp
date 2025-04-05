@@ -2,10 +2,12 @@
 #define COOLOG_HPP
 
 #include <iostream>
+#include <fstream>
+#include <sstream>
+#include <iomanip>
 #include <string>
 #include <chrono>
-#include <iomanip>
-#include <sstream>
+#include <regex>
 
 class CooLog {
 public:
@@ -17,13 +19,34 @@ public:
         ERROR
     };
 
-    explicit CooLog(Level level = Level::INFO) : currentLevel(level) {}
+    explicit CooLog(Level level = Level::INFO, bool logToFile = false, const std::string& filename = "")
+        : currentLevel(level)
+    {
+        if (logToFile && !fileLoggingInitialized) {
+            std::string finalFilename = validateOrGenerateFilename(filename);
+            logFileStream.open(finalFilename, std::ios::out | std::ios::app);
+            if (!logFileStream.is_open()) {
+                std::cerr << "Failed to open log file: " << finalFilename << "\n";
+                toFile = false;
+            } else {
+                toFile = true;
+                fileLoggingInitialized = true;
+            }
+        }
+    }
+
+    ~CooLog() {
+        
+    }
 
     void log(Level level, const std::string& message) {
-        if (shouldLog(level)) {
-            std::cout << "[" << getTimestamp() << "] "
-                      << "[" << levelToString(level) << "] "
-                      << message << std::endl;
+        if (!shouldLog(level)) return;
+
+        std::string entry = "[" + getTimestamp() + "] [" + levelToString(level) + "] " + message;
+
+        std::cout << entry << std::endl;
+        if (toFile && logFileStream.is_open()) {
+            logFileStream << entry << std::endl;
         }
     }
 
@@ -36,6 +59,11 @@ public:
 
 private:
     Level currentLevel;
+    bool toFile = false;
+
+    static int fallbackLogCounter;
+    static bool fileLoggingInitialized;
+    static std::ofstream logFileStream;
 
     bool shouldLog(Level level) const {
         if (currentLevel == Level::LOGOFF) return false;
@@ -65,6 +93,31 @@ private:
             << '.' << std::setfill('0') << std::setw(3) << ms.count();
         return oss.str();
     }
+
+    bool fileExists(const std::string& filename) {
+        std::ifstream infile(filename);
+        return infile.good();
+    }
+
+    std::string validateOrGenerateFilename(const std::string& name) {
+        std::regex extPattern(R"(.*\.(log|txt))", std::regex_constants::icase);
+        if (!name.empty() && std::regex_match(name, extPattern) && !fileExists(name)) {
+            return name;
+        }
+
+        std::string generatedName;
+        do {
+            std::ostringstream oss;
+            oss << "mycoolog" << fallbackLogCounter++ << ".log";
+            generatedName = oss.str();
+        } while (fileExists(generatedName));
+
+        return generatedName;
+    }
 };
+
+int CooLog::fallbackLogCounter = 1;
+bool CooLog::fileLoggingInitialized = false;
+std::ofstream CooLog::logFileStream;
 
 #endif // COOLOG_HPP
