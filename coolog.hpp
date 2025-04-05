@@ -35,19 +35,21 @@ public:
         }
     }
 
-    ~CooLog() {
-        
-    }
+    ~CooLog() {}
 
     void log(Level level, const std::string& message) {
         if (!shouldLog(level)) return;
 
-        std::string entry = "[" + getTimestamp() + "] [" + levelToString(level) + "] " + message;
+        std::string timestamp = getTimestamp();
+        std::string levelStr = levelToString(level);
+        std::string entry = "[" + timestamp + "] [" + levelStr + "] " + message;
 
-        std::cout << entry << std::endl;
         if (toFile && logFileStream.is_open()) {
             logFileStream << entry << std::endl;
         }
+
+        std::string colored = getColorForLevel(level) + entry + ansiReset;
+        std::cout << colored << std::endl;
     }
 
     void debug(const std::string& message) { log(Level::DEBUG, message); }
@@ -64,6 +66,18 @@ private:
     static int fallbackLogCounter;
     static bool fileLoggingInitialized;
     static std::ofstream logFileStream;
+
+    const std::string ansiReset = "\033[0m";
+
+    std::string getColorForLevel(Level level) const {
+        switch (level) {
+            case Level::DEBUG: return "\033[36m";   // blue
+            case Level::INFO: return "\033[32m";    // green
+            case Level::WARNING: return "\033[33m"; // yellow
+            case Level::ERROR: return "\033[31m";   // red
+            default: return "";
+        }
+    }
 
     bool shouldLog(Level level) const {
         if (currentLevel == Level::LOGOFF) return false;
@@ -115,6 +129,7 @@ private:
         return generatedName;
     }
 };
+
 
 int CooLog::fallbackLogCounter = 1;
 bool CooLog::fileLoggingInitialized = false;
